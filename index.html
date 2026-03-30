@@ -7004,6 +7004,18 @@
                     }
                 });
 
+                // Backup reminder (every 2 days)
+                const backupKey = 'imovpro_last_backup_' + (Auth.currentUser ? Auth.currentUser.username : 'default');
+                const lastBackup = localStorage.getItem(backupKey);
+                const daysSinceBackup = lastBackup
+                    ? Math.floor((today - new Date(lastBackup)) / (1000 * 60 * 60 * 24))
+                    : null;
+                if (lastBackup === null) {
+                    alerts.push({ type: 'backup', icon: 'fas fa-database', title: 'Faça o backup dos seus dados!', text: 'Nenhum backup realizado ainda. Como o sistema não é em nuvem, salve seus dados regularmente.' });
+                } else if (daysSinceBackup >= 2) {
+                    alerts.push({ type: 'backup', icon: 'fas fa-database', title: `Backup pendente há ${daysSinceBackup} dia(s)`, text: 'Realize o backup para não perder seus dados. O sistema não sincroniza automaticamente.' });
+                }
+
                 return alerts;
             },
 
@@ -7015,6 +7027,48 @@
                     text: `${Utils.formatCurrency(t.amount)} — ${Utils.formatDate(t.date)}`
                 }));
                 return [...txAlerts, ...Notifications.getOtherAlerts()];
+            },
+
+            doBackup: () => {
+                try {
+                    const username = Auth.currentUser ? Auth.currentUser.username : 'default';
+                    const backupData = {
+                        exportedAt: new Date().toISOString(),
+                        user: username,
+                        data: FinanceApp.data,
+                        cards: CardDB.getAll()
+                    };
+                    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    const dateStr = new Date().toISOString().slice(0, 10);
+                    a.href = url;
+                    a.download = `imovpro_backup_${username}_${dateStr}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    // Registra data do backup
+                    const backupKey = 'imovpro_last_backup_' + username;
+                    localStorage.setItem(backupKey, new Date().toISOString());
+
+                    // Atualiza painel
+                    Notifications.render();
+
+                    // Feedback visual
+                    const panel = document.getElementById('notif-panel');
+                    if (panel) {
+                        const toast = document.createElement('div');
+                        toast.style.cssText = 'position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:#16a34a;color:white;padding:10px 18px;border-radius:10px;font-size:0.82rem;font-weight:600;z-index:999;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.2);pointer-events:none;';
+                        toast.innerHTML = '<i class="fas fa-check-circle"></i> Backup realizado com sucesso!';
+                        panel.style.position = 'relative';
+                        panel.appendChild(toast);
+                        setTimeout(() => toast.remove(), 3000);
+                    }
+                } catch (e) {
+                    alert('Erro ao gerar o backup. Tente novamente.');
+                }
             },
 
             getCardSpent: (card, month, year) => {
@@ -7107,7 +7161,25 @@
                     html += `<div style="padding:8px 14px 4px;font-size:0.7rem;font-weight:700;color:var(--secondary);text-transform:uppercase;letter-spacing:.5px;border-top:1px solid var(--border);margin-top:4px;">
                         ⚠️ Outros Alertas (${otherAlerts.length})
                     </div>`;
-                    html += otherAlerts.map(a => `
+                    html += otherAlerts.map(a => {
+                        if (a.type === 'backup') {
+                            return `
+                        <div class="notif-item" style="border-left:3px solid #3b82f6;flex-direction:column;align-items:flex-start;gap:8px;">
+                            <div style="display:flex;align-items:center;gap:10px;width:100%;">
+                                <div class="notif-icon" style="background:#dbeafe;color:#1d4ed8;flex-shrink:0;">
+                                    <i class="${a.icon}"></i>
+                                </div>
+                                <div class="notif-text" style="flex:1;">
+                                    <strong style="color:var(--dark)">${a.title}</strong>
+                                    <div style="font-size:0.75rem;color:var(--secondary);margin-top:2px;">${a.text}</div>
+                                </div>
+                            </div>
+                            <button onclick="Notifications.doBackup()" style="width:100%;padding:8px;background:#1d4ed8;color:white;border:none;border-radius:8px;font-size:0.8rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+                                <i class="fas fa-download"></i> Fazer Backup Agora
+                            </button>
+                        </div>`;
+                        }
+                        return `
                         <div class="notif-item">
                             <div class="notif-icon ${a.type === 'danger' ? 'bg-red' : 'bg-yellow'}">
                                 <i class="${a.icon}"></i>
@@ -7116,7 +7188,8 @@
                                 <strong>${a.title}</strong>
                                 ${a.text}
                             </div>
-                        </div>`).join('');
+                        </div>`;
+                    }).join('');
                 }
 
                 list.innerHTML = html;
