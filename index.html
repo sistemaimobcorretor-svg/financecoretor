@@ -130,7 +130,7 @@
         main {
             flex: 1;
             overflow-y: auto;
-            padding: calc(var(--header-height) + 16px) 16px calc(var(--nav-height) + 80px);
+            padding: calc(var(--header-height) + 24px) 16px calc(var(--nav-height) + 80px);
             scroll-behavior: smooth;
         }
 
@@ -3106,6 +3106,9 @@
             },
 
             enterApp: (user) => {
+                // Garante que o scroll volta ao topo ao entrar no app
+                const mainEl = document.querySelector('main');
+                if (mainEl) mainEl.scrollTop = 0;
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('header-username').textContent = user.name || user.username;
                 // Atualiza nome nas configurações se necessário
@@ -3265,6 +3268,9 @@
             },
             
             switchTab: (el) => {
+                // Reset scroll ao topo ao trocar de aba
+                const mainEl = document.querySelector('main');
+                if (mainEl) mainEl.scrollTop = 0;
                 document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
                 document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
                 
